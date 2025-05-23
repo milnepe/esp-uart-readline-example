@@ -79,12 +79,25 @@ static void uart_event_task(void *pvParameters)
                         rx_buffer[rx_len++] = data[i];
 
                         // Example: End on '\n'
-                        if ((data[i] == '\n') && (rx_len == MESSAGE_LENGTH))
+                        if (data[i] == '\n')
                         {
-                            // rx_buffer[rx_len] = '\0';  // Null-terminate
-                            uart_write_bytes(UART1_PORT_NUM, (const char*) rx_buffer, rx_len);
-                            // Reset for next line
-                            rx_len = 0;
+                        
+                            if(rx_len == MESSAGE_LENGTH)
+                            {
+                                // rx_buffer[rx_len] = '\0';  // Null-terminate
+                                // uart_write_bytes(UART1_PORT_NUM, (const char*) rx_buffer, rx_len);
+                                uart_write_bytes(UART1_PORT_NUM, ".", 1);  // Echo back a dot
+                                // Reset for next line
+                                rx_len = 0;
+                            }
+                            else
+                            {
+                                // Handle incomplete line
+                                uart_write_bytes(UART1_PORT_NUM, (const char*) rx_buffer, rx_len);                                
+                                ESP_LOGW(TAG, "Incomplete line: %.*s", rx_len, rx_buffer);
+                                // Reset for next line
+                                rx_len = 0;
+                            }
                         }
                     }
                     else
@@ -94,7 +107,7 @@ static void uart_event_task(void *pvParameters)
                         ESP_LOGE(TAG,"Line buffer overflow, clearing...");
                     }
                 }
-                ESP_LOGI(TAG, "[DATA EVT]:");
+                // ESP_LOGI(TAG, "[DATA EVT]:");
                 break;
             //Event of HW FIFO overflow detected
             case UART_FIFO_OVF:
