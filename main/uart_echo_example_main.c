@@ -37,7 +37,7 @@
 #define UART1_CTS (UART_PIN_NO_CHANGE)
 
 #define UART1_PORT_NUM      (1)
-#define UART1_BAUD_RATE     (115200)
+#define UART1_BAUD_RATE     (2000000)  // 2M baud rate
 #define UART1_TASK_STACK_SIZE    (3072)
 
 static const char *TAG = "UART TEST";
@@ -60,7 +60,7 @@ static void uart_event_task(void *pvParameters)
         //Waiting for UART event.
         if (xQueueReceive(uart1_queue, (void *)&event, (TickType_t)portMAX_DELAY))
         {
-            ESP_LOGI(TAG, "uart[%d] event:", UART1_PORT_NUM);
+            // ESP_LOGI(TAG, "uart[%d] event:", UART1_PORT_NUM);
             switch (event.type)
             {
             //Event of UART receiving data
@@ -87,17 +87,15 @@ static void uart_event_task(void *pvParameters)
                                 // rx_buffer[rx_len] = '\0';  // Null-terminate
                                 // uart_write_bytes(UART1_PORT_NUM, (const char*) rx_buffer, rx_len);
                                 uart_write_bytes(UART1_PORT_NUM, ".", 1);  // Echo back a dot
-                                // Reset for next line
-                                rx_len = 0;
                             }
                             else
                             {
                                 // Handle incomplete line
                                 uart_write_bytes(UART1_PORT_NUM, (const char*) rx_buffer, rx_len);                                
                                 ESP_LOGW(TAG, "Incomplete line: %.*s", rx_len, rx_buffer);
-                                // Reset for next line
-                                rx_len = 0;
                             }
+                            // Reset for next line
+                            rx_len = 0;
                         }
                     }
                     else
