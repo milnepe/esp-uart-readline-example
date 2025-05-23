@@ -19,13 +19,13 @@
 
 /**
  * This is an example which echos any data it receives on configured UART back to the sender,
- * with hardware flow control turned off. It does not use UART driver event queue.
+ * with hardware flow control turned off. It uses a UART driver event queue.
  *
  * - Port: configured UART
  * - Receive (Rx) buffer: on
  * - Transmit (Tx) buffer: off
  * - Flow control: off
- * - Event queue: off
+ * - Event queue: on
  * - Pin assignment: see defines below (See Kconfig)
  */
 
@@ -43,14 +43,16 @@
 static const char *TAG = "UART TEST";
 
 #define BUF_SIZE (1024)
-#define RD_BUF_SIZE (BUF_SIZE)
-#define PATTERN_CHR_NUM    (3) 
+#define LINE_BUF_SIZE (128)  // Line buffer size - large enough to hold a single line
+// #define RD_BUF_SIZE (BUF_SIZE)
+// #define PATTERN_CHR_NUM    (3) 
 static QueueHandle_t uart1_queue;
 
 static void uart_event_task(void *pvParameters)
 {
     uart_event_t event;
-    uint8_t* rx_buffer = (uint8_t*) malloc(RD_BUF_SIZE);
+    // uint8_t* rx_buffer = (uint8_t*) malloc(RD_BUF_SIZE);
+    uint8_t rx_buffer[LINE_BUF_SIZE];
     int rx_len = 0;
 
     for (;;)
@@ -67,23 +69,26 @@ static void uart_event_task(void *pvParameters)
             be full.*/
             case UART_DATA:
                 ESP_LOGI(TAG, "[UART DATA]: %d", event.size);
-                uint8_t data[MESSAGE_LENGTH];
-                int len = uart_read_bytes(UART1_PORT_NUM, data, sizeof(data), 10 / portTICK_PERIOD_MS);
+                uint8_t data[LINE_BUF_SIZE];  // Buffer to hold incoming data
+                uart_read_bytes(UART1_PORT_NUM, data, MESSAGE_LENGTH, 10 / portTICK_PERIOD_MS);
 
-                for (int i = 0; i < MESSAGE_LENGTH; i++) {
-                    if (rx_len < BUF_SIZE - 1) {
+                for (int i = 0; i < MESSAGE_LENGTH; i++)
+                {
+                    if (rx_len < LINE_BUF_SIZE - 1)
+                    {
                         rx_buffer[rx_len++] = data[i];
 
                         // Example: End on '\n'
-                        if ((data[i] == '\n') && (rx_len == MESSAGE_LENGTH)) {
-                            rx_buffer[rx_len] = '\0';  // Null-terminate
-                            // printf("Received line: %s", (char*)rx_buffer);
+                        if ((data[i] == '\n') && (rx_len == MESSAGE_LENGTH))
+                        {
+                            // rx_buffer[rx_len] = '\0';  // Null-terminate
                             uart_write_bytes(UART1_PORT_NUM, (const char*) rx_buffer, rx_len);
-
                             // Reset for next line
                             rx_len = 0;
                         }
-                    } else {
+                    }
+                    else
+                    {
                         // Overflow handling
                         rx_len = 0;
                         ESP_LOGE(TAG,"Line buffer overflow, clearing...");
@@ -126,8 +131,8 @@ static void uart_event_task(void *pvParameters)
             }
         }
     }
-    free(rx_buffer);
-    rx_buffer = NULL;
+    // free(rx_buffer);
+    // rx_buffer = NULL;
     vTaskDelete(NULL);
 }
    
