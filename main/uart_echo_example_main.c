@@ -46,7 +46,39 @@ static const char *TAG = "UART TEST";
 #define BUF_SIZE (1024)
 #define LINE_BUF_SIZE (128)  // Line buffer size - large enough to hold a single line
 
+#define REPORT_INTERVAL_MS (10000)  // Report interval in milliseconds
+
 static QueueHandle_t uart1_queue;
+
+volatile uint32_t good_line_count = 0;
+volatile uint32_t bad_line_count = 0;
+static portMUX_TYPE my_spinlock = portMUX_INITIALIZER_UNLOCKED;
+
+void uart_report_task(void *arg)
+{
+    char message[64];
+    while (1) {
+        vTaskDelay(pdMS_TO_TICKS(REPORT_INTERVAL_MS)); // 10 seconds
+
+        uint32_t good_count_snapshot;
+        uint32_t bad_count_snapshot = 0;
+
+        // Atomic swap (safe because it's just a 32-bit int on ESP32)
+        taskENTER_CRITICAL(&my_spinlock);
+        good_count_snapshot = good_line_count;
+        good_line_count = 0;
+        bad_count_snapshot += bad_line_count; // Include bad lines in the report
+        bad_line_count = 0;
+        taskEXIT_CRITICAL(&my_spinlock);
+
+        snprintf(message, sizeof(message), "Good lines (msg/s): %lu ", (unsigned long)good_count_snapshot * 1000 / REPORT_INTERVAL_MS);
+        uart_write_bytes(UART1_PORT_NUM, message, strlen(message));
+        snprintf(message, sizeof(message), "Bad lines (msg/s): %lu\r\n", (unsigned long)bad_count_snapshot * 1000 / REPORT_INTERVAL_MS);
+        uart_write_bytes(UART1_PORT_NUM, message, strlen(message));
+        ESP_LOGI(TAG, "Reported %lu good lines", (unsigned long)good_count_snapshot);
+        ESP_LOGI(TAG, "Reported %lu bad lines", (unsigned long)bad_count_snapshot);
+    }
+}
 
 static void uart_event_task(void *pvParameters)
 {
@@ -97,13 +129,15 @@ static void uart_event_task(void *pvParameters)
                     {
                         // Handle line of correct length
                         // uart_write_bytes(UART1_PORT_NUM, (const char*) rx_buffer, rx_len);
-                        uart_write_bytes(UART1_PORT_NUM, ".", 1);  // Echo back a dot
+                        // uart_write_bytes(UART1_PORT_NUM, ".", 1);  // Echo back a dot
+                        good_line_count++; // Count a good line
                     }
                     else
                     {
                         // Handle incomplete line
                         uart_write_bytes(UART1_PORT_NUM, (const char*) rx_buffer, rx_len);
                         ESP_LOGW(TAG, "Incomplete line: %.*s", rx_len, rx_buffer);
+                        bad_line_count++; // Count a bad line
                     }
                     // Reset for next line
                     rx_len = 0;
@@ -168,4 +202,5 @@ void app_main(void)
     ESP_ERROR_CHECK(uart_set_pin(UART1_PORT_NUM, UART1_TXD, UART1_RXD, UART1_RTS, UART1_CTS));
 
     xTaskCreate(uart_event_task, "uart_event_task", UART1_TASK_STACK_SIZE, NULL, 12, NULL);
+    xTaskCreate(uart_report_task, "uart_report_task", 2048, NULL, 5, NULL);
 }
