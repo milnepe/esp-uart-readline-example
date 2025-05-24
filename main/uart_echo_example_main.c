@@ -73,36 +73,40 @@ static void uart_event_task(void *pvParameters)
 
                 for (int i = 0; i < MESSAGE_LENGTH; i++)
                 {
-                    if (rx_len < LINE_BUF_SIZE - 1)
-                    {
-                        rx_buffer[rx_len++] = data[i];
-
-                        // Example: End on '\n'
-                        if (data[i] == '\n')
-                        {
-                            if(rx_len == MESSAGE_LENGTH)
-                            {
-                                // Handle complete line
-                                // rx_buffer[rx_len] = '\0';  // Null-terminate
-                                uart_write_bytes(UART1_PORT_NUM, (const char*) rx_buffer, rx_len);
-                                // uart_write_bytes(UART1_PORT_NUM, ".", 1);  // Echo back a dot
-                            }
-                            else
-                            {
-                                // Handle incomplete line
-                                uart_write_bytes(UART1_PORT_NUM, (const char*) rx_buffer, rx_len);                                
-                                ESP_LOGW(TAG, "Incomplete line: %.*s", rx_len, rx_buffer);
-                            }
-                            // Reset for next line
-                            rx_len = 0;
-                        }
-                    }
-                    else
+                    if (rx_len >= LINE_BUF_SIZE - 1)
                     {
                         // Overflow handling
                         rx_len = 0;
                         ESP_LOGE(TAG,"Line buffer overflow, clearing...");
+                        continue;  // Exit if buffer is full
                     }
+
+                    char ch = data[i];
+                    rx_buffer[rx_len++] = ch;
+
+                    if (ch != '\n')
+                    {
+                        continue;
+                    }
+
+                    // Null-terminate for safe logging/debugging (won't be sent over UART)
+                    // rx_buffer[rx_len] = '\0';
+
+                    // If we reach here, it means we have a complete line
+                    if(rx_len == MESSAGE_LENGTH)
+                    {
+                        // Handle line of correct length
+                        // uart_write_bytes(UART1_PORT_NUM, (const char*) rx_buffer, rx_len);
+                        uart_write_bytes(UART1_PORT_NUM, ".", 1);  // Echo back a dot
+                    }
+                    else
+                    {
+                        // Handle incomplete line
+                        uart_write_bytes(UART1_PORT_NUM, (const char*) rx_buffer, rx_len);
+                        ESP_LOGW(TAG, "Incomplete line: %.*s", rx_len, rx_buffer);
+                    }
+                    // Reset for next line
+                    rx_len = 0;
                 }
                 // ESP_LOGI(TAG, "[DATA EVT]:");
                 break;
