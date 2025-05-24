@@ -31,27 +31,26 @@
 
 #define MESSAGE_LENGTH 77
 
-#define UART1_TXD (4)
-#define UART1_RXD (5)
+#define UART1_TXD (17)
+#define UART1_RXD (16)
 #define UART1_RTS (UART_PIN_NO_CHANGE)
 #define UART1_CTS (UART_PIN_NO_CHANGE)
 
-#define UART1_PORT_NUM      (1)
+#define UART1_PORT_NUM      (2)
 #define UART1_BAUD_RATE     (2000000)  // 2M baud rate
 #define UART1_TASK_STACK_SIZE    (3072)
+#define UART1_QUEUE_SIZE     (20) // Number of events in the UART event queue
 
 static const char *TAG = "UART TEST";
 
 #define BUF_SIZE (1024)
 #define LINE_BUF_SIZE (128)  // Line buffer size - large enough to hold a single line
-// #define RD_BUF_SIZE (BUF_SIZE)
-// #define PATTERN_CHR_NUM    (3) 
+
 static QueueHandle_t uart1_queue;
 
 static void uart_event_task(void *pvParameters)
 {
     uart_event_t event;
-    // uint8_t* rx_buffer = (uint8_t*) malloc(RD_BUF_SIZE);
     uint8_t rx_buffer[LINE_BUF_SIZE];
     int rx_len = 0;
 
@@ -81,12 +80,12 @@ static void uart_event_task(void *pvParameters)
                         // Example: End on '\n'
                         if (data[i] == '\n')
                         {
-                        
                             if(rx_len == MESSAGE_LENGTH)
                             {
+                                // Handle complete line
                                 // rx_buffer[rx_len] = '\0';  // Null-terminate
-                                // uart_write_bytes(UART1_PORT_NUM, (const char*) rx_buffer, rx_len);
-                                uart_write_bytes(UART1_PORT_NUM, ".", 1);  // Echo back a dot
+                                uart_write_bytes(UART1_PORT_NUM, (const char*) rx_buffer, rx_len);
+                                // uart_write_bytes(UART1_PORT_NUM, ".", 1);  // Echo back a dot
                             }
                             else
                             {
@@ -142,8 +141,6 @@ static void uart_event_task(void *pvParameters)
             }
         }
     }
-    // free(rx_buffer);
-    // rx_buffer = NULL;
     vTaskDelete(NULL);
 }
    
@@ -162,7 +159,7 @@ void app_main(void)
     };
 
     // poll the UART driver
-    ESP_ERROR_CHECK(uart_driver_install(UART1_PORT_NUM, BUF_SIZE * 2, BUF_SIZE * 2, 20, &uart1_queue, 0));
+    ESP_ERROR_CHECK(uart_driver_install(UART1_PORT_NUM, BUF_SIZE * 2, BUF_SIZE * 2, UART1_QUEUE_SIZE, &uart1_queue, 0));
     ESP_ERROR_CHECK(uart_param_config(UART1_PORT_NUM, &uart_config));
     ESP_ERROR_CHECK(uart_set_pin(UART1_PORT_NUM, UART1_TXD, UART1_RXD, UART1_RTS, UART1_CTS));
 
